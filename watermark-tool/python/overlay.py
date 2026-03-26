@@ -56,25 +56,23 @@ def generate_dynamic_watermark(username: str) -> str:
     it** (use os.remove in a finally block).
     """
     hex_id = username.encode("utf-8").hex().upper()
-    label  = f"DITZY-ID:{hex_id}"
-
-    stroke_w = 4
+    label  = hex_id
 
     try:
-        font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 80)
+        font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 28)
     except OSError:
         try:
-            font = ImageFont.truetype("arial.ttf", 80)
+            font = ImageFont.truetype("arial.ttf", 28)
         except OSError:
-            font = ImageFont.load_default(size=80)
+            font = ImageFont.load_default(size=28)
 
     # Measure text on a scratch canvas so we can auto-size the real image.
     scratch = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    bbox = scratch.textbbox((0, 0), label, font=font, stroke_width=stroke_w)
+    bbox = scratch.textbbox((0, 0), label, font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
 
-    pad   = 24
+    pad   = 8
     img_w = text_w + pad * 2
     img_h = text_h + pad * 2
 
@@ -85,12 +83,9 @@ def generate_dynamic_watermark(username: str) -> str:
     x = pad - bbox[0]
     y = pad - bbox[1]
 
-    # White text with thick black stroke — visible on any background
     draw.text(
         (x, y), label, font=font,
         fill=(255, 255, 255, 255),
-        stroke_width=stroke_w,
-        stroke_fill=(0, 0, 0, 255),
     )
 
     # Write to a properly-closed temp file (Windows file-lock safe).
@@ -131,8 +126,8 @@ def add_visible_watermark(
         x_expr, y_expr = _position_exprs(position)
 
         filter_complex = (
-            f"[1:v][0:v]scale2ref=w='iw*0.30':h=-2[wm];"
-            f"[0:v][wm]overlay={x_expr}:{y_expr}"
+            "[1:v]format=rgba,colorchannelmixer=aa=0.35[wm_trans];"
+            f"[0:v][wm_trans]overlay={x_expr}:{y_expr}"
         )
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
