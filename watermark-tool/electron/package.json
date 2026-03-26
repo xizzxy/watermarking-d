@@ -1,0 +1,79 @@
+{
+  "name": "watermark-tool",
+  "version": "0.1.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist":  "electron-builder --publish=never"
+  },
+  "author": "Watermark Tool",
+  "description": "Embed and decode per-fan steganographic video watermarks",
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.watermark-tool.app",
+    "productName": "Watermark Tool",
+    "copyright": "Copyright © 2026",
+
+    "directories": {
+      "output": "dist-electron"
+    },
+
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "!node_modules"
+    ],
+
+    "extraResources": [
+      {
+        "from": "../python/dist",
+        "to":   "python/dist",
+        "filter": ["server.exe", "server"]
+      },
+      {
+        "from": "../assets",
+        "to":   "assets"
+      }
+    ],
+
+    "icon": "../assets/icon",
+
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "../assets/icon.ico"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "../assets/icon.ico",
+      "uninstallerIcon": "../assets/icon.ico",
+      "installerHeaderIcon": "../assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Watermark Tool"
+    },
+
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "../assets/icon.icns",
+      "category": "public.app-category.utilities"
+    },
+
+    "dmg": {
+      "title": "Watermark Tool"
+    },
+
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "../assets/icon.png",
+      "category": "Utility"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv venv)",
+      "Bash(./venv/Scripts/pip install:*)",
+      "Bash(./venv/Scripts/pip index:*)",
+      "Bash(./venv/Scripts/pip uninstall:*)",
+      "Bash(./venv/Scripts/python -c \"from blind_watermark import WaterMark; print\\('blind-watermark OK'\\)\" 2>&1)",
+      "Bash(npm install:*)",
+      "Bash(ffmpeg -version)",
+      "Bash(npx electron:*)",
+      "Bash(./venv/Scripts/python -:*)",
+      "Bash(./venv/Scripts/python -c \"import cv2, numpy, PIL; print\\('cv2', cv2.__version__, '| numpy', numpy.__version__, '| Pillow', PIL.__version__\\)\" 2>&1)",
+      "Bash(node:*)",
+      "Bash(./venv/Scripts/python -m pytest tests/test_stego.py -v 2>&1)",
+      "Bash(./venv/Scripts/python -c \"import blind_watermark; import inspect; print\\(inspect.getfile\\(blind_watermark\\)\\)\" 2>&1)",
+      "Bash(winget install:*)",
+      "Bash(where ffmpeg:*)",
+      "Bash(winget list:*)",
+      "Bash(\"/c/Users/xizzy/AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe\" -version)",
+      "Bash(./venv/Scripts/python -m pytest tests/ -v 2>&1)",
+      "Bash(./venv/Scripts/python -c \"from fastapi.testclient import TestClient; print\\('TestClient OK'\\)\" 2>&1)",
+      "Bash(./venv/Scripts/python -m pytest tests/test_server.py -v 2>&1)",
+      "Bash(python/venv/Scripts/pyinstaller.exe --clean --distpath dist --workpath build server.spec)",
+      "Bash(venv/Scripts/pyinstaller.exe --clean --distpath dist --workpath build server.spec)",
+      "Bash(npm run:*)",
+      "Bash(venv/Scripts/python.exe -m pytest tests/test_stego.py tests/test_overlay.py tests/test_server.py -v --tb=short)",
+      "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/test_qa.py -v --tb=short \\\\\n  -k \"not performance\" 2>&1)",
+      "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/test_qa.py::test_survival_rate -v --tb=short 2>&1)",
+      "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/ -v --tb=short 2>&1)"
+    ]
+  }
+}

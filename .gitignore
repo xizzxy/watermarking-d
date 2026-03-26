@@ -1,0 +1,21 @@
+# Build outputs — too large for GitHub (>100 MB)
+watermark-tool/electron/dist-electron/
+watermark-tool/electron/dist/
+watermark-tool/electron/node_modules/
+watermark-tool/python/dist/
+watermark-tool/python/build/
+watermark-tool/build/
+watermark-tool/dist/
+
+# Temp video files
+watermark-tool/python/temp/
+
+# Python cache
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Misc
+.DS_Store
+Thumbs.db

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Strict CSP: no inline scripts, no remote resources -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src http://127.0.0.1:8765; style-src 'self' 'unsafe-inline';" />
+  <title>Watermark Tool</title>
+  <style>
+    /* ── reset / base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f11;
+      --surface:   #1a1a1f;
+      --border:    #2e2e38;
+      --accent:    #7c6af7;
+      --accent-h:  #9b8dff;
+      --text:      #e8e8f0;
+      --muted:     #8888a0;
+      --success:   #4ade80;
+      --error:     #f87171;
+      --radius:    10px;
+      --font:      "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      user-select: none;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── title bar ────────────────────────────────────────────────────── */
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .titlebar h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    .backend-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    .dot.ok    { background: var(--success); }
+    .dot.error { background: var(--error); }
+
+    /* ── tabs ─────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      padding: 0 20px;
+    }
+    .tab {
+      padding: 10px 18px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color .15s, border-color .15s;
+    }
+    .tab:hover  { color: var(--text); }
+    .tab.active { color: var(--accent-h); border-bottom-color: var(--accent); }
+
+    /* ── panels ───────────────────────────────────────────────────────── */
+    .panels { flex: 1; overflow-y: auto; }
+    .panel  { display: none; padding: 28px 24px; max-width: 700px; margin: 0 auto; }
+    .panel.active { display: block; }
+
+    /* ── drop zone ────────────────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 20px;
+    }
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(124, 106, 247, .07);
+    }
+    .drop-zone .icon { font-size: 36px; margin-bottom: 8px; }
+    .drop-zone .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .drop-zone .filename {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--accent-h);
+      word-break: break-all;
+    }
+
+    /* ── form elements ────────────────────────────────────────────────── */
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color .15s;
+      margin-bottom: 18px;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    /* ── buttons ──────────────────────────────────────────────────────── */
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 20px;
+      font-size: 14px;
+      font-family: var(--font);
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, background .15s;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+
+    /* ── progress bar ─────────────────────────────────────────────────── */
+    .progress-wrap {
+      margin: 14px 0;
+      display: none;
+    }
+    .progress-wrap.visible { display: block; }
+    .progress-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width .2s;
+      width: 0%;
+    }
+    .progress-fill.indeterminate {
+      width: 40% !important;
+      animation: slide 1.2s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0%   { transform: translateX(-150%); }
+      100% { transform: translateX(350%); }
+    }
+
+    /* ── result card ──────────────────────────────────────────────────── */
+    .result-card {
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-top: 18px;
+      display: none;
+      font-size: 13px;
+    }
+    .result-card.visible { display: block; }
+    .result-card.success {
+      background: rgba(74, 222, 128, .09);
+      border: 1px solid rgba(74, 222, 128, .3);
+    }
+    .result-card.error {
+      background: rgba(248, 113, 113, .09);
+      border: 1px solid rgba(248, 113, 113, .3);
+    }
+    .result-card .title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .result-card.success .title { color: var(--success); }
+    .result-card.error   .title { color: var(--error); }
+    .result-card .body { color: var(--text); line-height: 1.6; white-space: pre-wrap; font-size: 11px; overflow-x: auto; }
+    .result-card .actions { margin-top: 12px; display: flex; gap: 8px; }
+    .result-card .username-badge {
+      display: inline-block;
+      background: rgba(124,106,247,.18);
+      color: var(--accent-h);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    /* ── OR divider ───────────────────────────────────────────────────── */
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .or-divider::before,
+    .or-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- title bar -->
+  <div class="titlebar">
+    <h1>Watermark Tool</h1>
+    <div class="backend-status">
+      <div class="dot" id="backendDot"></div>
+      <span id="backendLabel">connecting…</span>
+    </div>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="encode">Encode</div>
+    <div class="tab"        data-tab="decode">Decode</div>
+  </div>
+
+  <!-- panels -->
+  <div class="panels">
+
+    <!-- ── ENCODE ───────────────────────────────────────────────────── -->
+    <div class="panel active" id="panel-encode">
+
+      <div class="drop-zone" id="encDropZone" role="button" tabindex="0"
+           aria-label="Drop or click to select a video file">
+        <div class="icon">🎬</div>
+        <div>Drop a video file here</div>
+        <div class="hint">.mp4 or .mov — up to 2 GB</div>
+        <div class="filename" id="encFilename"></div>
+      </div>
+      <input type="file" id="encFileInput" accept=".mp4,.mov" style="display:none" />
+
+      <label for="encUsername">Fan username</label>
+      <input type="text" id="encUsername" placeholder="e.g. superfan_99" maxlength="57" />
+
+      <button class="btn-primary" id="encBtn" disabled>Embed Watermark</button>
+
+      <div class="progress-wrap" id="encProgress">
+        <div class="progress-label" id="encProgressLabel">Processing…</div>
+        <div class="progress-bar"><div class="progress-fill indeterminate" id="encProgressFill"></div></div>
+      </div>
+
+      <div class="result-card" id="encResult">
+        <div class="title" id="encResultTitle"></div>
+        <div class="body"  id="encResultBody"></div>
+        <div class="actions" id="encResultActions"></div>
+      </div>
+
+    </div><!-- /encode -->
+
+    <!-- ── DECODE ───────────────────────────────────────────────────── -->
+    <div class="panel" id="panel-decode">
+
+      <div class="drop-zone" id="decDropZone" role="button" tabindex="0"
+           aria-label="Drop or click to select a watermarked video file">
+        <div class="icon">🔍</div>
+        <div>Drop a watermarked video here</div>
+        <div class="hint">.mp4 or .mov</div>
+        <div class="filename" id="decFilename"></div>
+      </div>
+      <input type="file" id="decFileInput" accept=".mp4,.mov" style="display:none" />
+
+      <button class="btn-primary" id="decBtn" disabled>Identify Fan</button>
+
+      <div class="progress-wrap" id="decProgress">
+        <div class="progress-label">Extracting watermark…</div>
+        <div class="progress-bar"><div class="progress-fill indeterminate"></div></div>
+      </div>
+
+      <div class="result-card" id="decResult">
+        <div class="title" id="decResultTitle"></div>
+        <div class="body"  id="decResultBody"></div>
+      </div>
+
+      <!-- ── Hex decoder ──────────────────────────────────────────────── -->
+      <div class="or-divider">— OR —</div>
+
+      <label for="hexInput">Enter visible DITZY-ID (e.g. 62616C6C…)</label>
+      <input type="text" id="hexInput"
+             placeholder="DITZY-ID:6A6F686E or raw hex"
+             style="user-select:text; margin-bottom:12px;" />
+
+      <button class="btn-secondary" id="hexBtn" style="width:100%;">Decode ID</button>
+
+      <div class="result-card" id="hexResult">
+        <div class="title" id="hexResultTitle"></div>
+        <div class="body"  id="hexResultBody"></div>
+      </div>
+
+    </div><!-- /decode -->
+
+  </div><!-- /panels -->
+
+  <script src="app.js"></script>
+</body>
+</html>
