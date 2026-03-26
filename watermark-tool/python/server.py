@@ -92,6 +92,7 @@ async def health() -> dict:
 async def encode(
     video: UploadFile = File(...),
     username: str = Form(...),
+    add_visible: bool = Form(True),
 ) -> JSONResponse:
     """Embed stego + visible watermark.
 
@@ -128,7 +129,7 @@ async def encode(
         # Run in a thread so the event loop stays free for /health pings
         # while the CPU-bound stego+FFmpeg work is in progress.
         result = await run_in_threadpool(
-            full_watermark, input_path, username.strip(), output_path
+            full_watermark, input_path, username.strip(), output_path, add_visible
         )
 
         _write_log(f"full_watermark result: {result}")

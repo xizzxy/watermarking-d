@@ -61,25 +61,29 @@ document.querySelectorAll(".tab").forEach((tab) => {
  * Wire up a drop zone + hidden file input.
  * @param {Object} opts
  *   dropZone   HTMLElement
- *   fileInput  HTMLInputElement
- *   labelEl    HTMLElement  (shows chosen filename)
+ *   fileInput  HTMLInputElement  (may have `multiple`)
+ *   labelEl    HTMLElement  (shows chosen filename(s))
  *   button     HTMLButtonElement
- *   onFile     (File) => void
+ *   onFile     (File|File[]) => void  — array when fileInput has `multiple`
  */
 function setupDropZone({ dropZone, fileInput, labelEl, button, onFile }) {
-  const ACCEPTED = new Set(["video/mp4", "video/quicktime"]);
+  const multi = fileInput.multiple;
 
-  function handleFile(file) {
-    if (!file) return;
-    const ext = file.name.split(".").pop().toLowerCase();
-    if (!["mp4", "mov"].includes(ext)) {
+  function handleFiles(fileList) {
+    const files = Array.from(fileList).filter((f) => {
+      const ext = f.name.split(".").pop().toLowerCase();
+      return ["mp4", "mov"].includes(ext);
+    });
+    if (!files.length) {
       labelEl.textContent = "⚠ Only .mp4 and .mov are accepted";
       button.disabled = true;
       return;
     }
-    labelEl.textContent = file.name;
+    labelEl.textContent = files.length === 1
+      ? files[0].name
+      : `${files.length} files selected`;
     button.disabled = false;
-    onFile(file);
+    onFile(multi ? files : files[0]);
   }
 
   dropZone.addEventListener("click",  () => fileInput.click());
@@ -88,7 +92,7 @@ function setupDropZone({ dropZone, fileInput, labelEl, button, onFile }) {
   });
 
   fileInput.addEventListener("change", () => {
-    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    if (fileInput.files.length) handleFiles(fileInput.files);
   });
 
   dropZone.addEventListener("dragover", (e) => {
@@ -99,8 +103,7 @@ function setupDropZone({ dropZone, fileInput, labelEl, button, onFile }) {
   dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropZone.classList.remove("drag-over");
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   });
 }
 
@@ -137,97 +140,96 @@ const encResult        = document.getElementById("encResult");
 const encResultTitle   = document.getElementById("encResultTitle");
 const encResultBody    = document.getElementById("encResultBody");
 const encResultActions = document.getElementById("encResultActions");
+const visibleToggle    = document.getElementById("visibleToggle");
 
-let encFile = null;
+let selectedFiles = [];
 
 setupDropZone({
   dropZone:  document.getElementById("encDropZone"),
   fileInput: document.getElementById("encFileInput"),
   labelEl:   document.getElementById("encFilename"),
   button:    encBtn,
-  onFile:    (f) => { encFile = f; updateEncBtn(); },
+  onFile:    (files) => { selectedFiles = files; updateEncBtn(); },
 });
 
 encUsername.addEventListener("input", updateEncBtn);
 
 function updateEncBtn() {
-  encBtn.disabled = !(encFile && encUsername.value.trim().length > 0);
+  encBtn.disabled = !(selectedFiles.length > 0 && encUsername.value.trim().length > 0);
 }
 
 encBtn.addEventListener("click", async () => {
-  if (!encFile || !encUsername.value.trim()) return;
+  if (!selectedFiles.length || !encUsername.value.trim()) return;
 
   hideResult(encResult);
   encResultActions.innerHTML = "";
-  encProgressLabel.textContent = "Uploading and processing — this may take a minute…";
-  showProgress(encProgress);
   encBtn.disabled = true;
 
-  try {
-    const formData = new FormData();
-    formData.append("video",    encFile,                encFile.name);
-    formData.append("username", encUsername.value.trim());
+  const username   = encUsername.value.trim();
+  const addVisible = visibleToggle.checked;
+  const total      = selectedFiles.length;
+  const saved      = [];
+  const failed     = [];
 
-    const res = await fetch(`${API_BASE}/encode`, { method: "POST", body: formData });
-    const json = await res.json();
-
-    hideProgress(encProgress);
-
-    if (!res.ok || !json.success) {
-      const errText = json.detail || json.error || "Unknown error";
-      encResultBody.textContent = errText;
-      showError(encResult, encResultTitle, encResultBody, "Encoding failed", "");
-      return;
-    }
-
-    // Download the encoded file immediately
-    encProgressLabel.textContent = "Downloading encoded file…";
+  for (let i = 0; i < total; i++) {
+    const file = selectedFiles[i];
+    encProgressLabel.textContent = `Processing ${i + 1} of ${total}: ${file.name}…`;
     showProgress(encProgress);
 
-    const dlRes = await fetch(`${API_BASE}/download/${json.download_token}`);
-    if (!dlRes.ok) {
-      hideProgress(encProgress);
-      showError(encResult, encResultTitle, encResultBody,
-        "Download failed", `HTTP ${dlRes.status}`);
-      return;
+    try {
+      const formData = new FormData();
+      formData.append("video",       file, file.name);
+      formData.append("username",    username);
+      formData.append("add_visible", String(addVisible));
+
+      const res  = await fetch(`${API_BASE}/encode`, { method: "POST", body: formData });
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        failed.push(`${file.name}: ${json.detail || json.error || "Unknown error"}`);
+        continue;
+      }
+
+      encProgressLabel.textContent = `Saving ${i + 1} of ${total}: ${file.name}…`;
+
+      const dlRes = await fetch(`${API_BASE}/download/${json.download_token}`);
+      if (!dlRes.ok) { failed.push(`${file.name}: download HTTP ${dlRes.status}`); continue; }
+
+      const blob     = await dlRes.blob();
+      const arrayBuf = await blob.arrayBuffer();
+      const outName  = file.name.replace(/\.[^.]+$/, "") + "_watermarked.mp4";
+      const saveRes  = await window.api.saveFile({ filename: outName, buffer: arrayBuf });
+
+      if (saveRes.canceled) {
+        failed.push(`${file.name}: save dialog dismissed`);
+      } else if (!saveRes.success) {
+        failed.push(`${file.name}: ${saveRes.error || "save failed"}`);
+      } else {
+        saved.push(saveRes.filePath);
+      }
+
+    } catch (err) {
+      failed.push(`${file.name}: ${err.message}`);
     }
-
-    const blob       = await dlRes.blob();
-    const arrayBuf   = await blob.arrayBuffer();
-    const outName    = encFile.name.replace(/\.[^.]+$/, "") + "_watermarked.mp4";
-
-    hideProgress(encProgress);
-
-    // Ask main process to show Save dialog
-    const saveRes = await window.api.saveFile({ filename: outName, buffer: arrayBuf });
-
-    if (saveRes.canceled) {
-      showSuccess(encResult, encResultTitle, encResultBody,
-        "Watermark embedded",
-        "File ready — save dialog was dismissed. The file was not written to disk.");
-      return;
-    }
-
-    if (!saveRes.success) {
-      showError(encResult, encResultTitle, encResultBody,
-        "Save failed", escHtml(saveRes.error || "Unknown error"));
-      return;
-    }
-
-    showSuccess(encResult, encResultTitle, encResultBody,
-      "Watermark embedded",
-      `Saved to: <code style="font-size:12px;word-break:break-all">${escHtml(saveRes.filePath)}</code>`);
-
-    // Trigger cleanup in background
-    fetch(`${API_BASE}/cleanup`, { method: "POST" }).catch(() => {});
-
-  } catch (err) {
-    hideProgress(encProgress);
-    showError(encResult, encResultTitle, encResultBody,
-      "Unexpected error", escHtml(err.message));
-  } finally {
-    updateEncBtn();
   }
+
+  hideProgress(encProgress);
+  fetch(`${API_BASE}/cleanup`, { method: "POST" }).catch(() => {});
+
+  if (failed.length === 0) {
+    showSuccess(encResult, encResultTitle, encResultBody,
+      `Successfully processed ${saved.length} file${saved.length !== 1 ? "s" : ""}!`,
+      saved.map((p) => `✓ ${escHtml(p)}`).join("\n"));
+  } else {
+    const bodyLines = [
+      saved.length  ? `✓ ${saved.length} saved:\n${saved.map((p) => `  ${escHtml(p)}`).join("\n")}` : "",
+      failed.length ? `✗ ${failed.length} failed:\n${failed.map((m) => `  ${escHtml(m)}`).join("\n")}` : "",
+    ].filter(Boolean).join("\n\n");
+    showError(encResult, encResultTitle, encResultBody,
+      `${failed.length} of ${total} failed`, bodyLines);
+  }
+
+  updateEncBtn();
 });
 
 // ── DECODE tab ─────────────────────────────────────────────────────────────

@@ -270,16 +270,24 @@
     <div class="panel active" id="panel-encode">
 
       <div class="drop-zone" id="encDropZone" role="button" tabindex="0"
-           aria-label="Drop or click to select a video file">
+           aria-label="Drop or click to select video files">
         <div class="icon">🎬</div>
-        <div>Drop a video file here</div>
-        <div class="hint">.mp4 or .mov — up to 2 GB</div>
+        <div>Drop video files here</div>
+        <div class="hint">.mp4 or .mov — up to 2 GB each</div>
         <div class="filename" id="encFilename"></div>
       </div>
-      <input type="file" id="encFileInput" accept=".mp4,.mov" style="display:none" />
+      <input type="file" id="encFileInput" accept=".mp4,.mov" multiple style="display:none" />
 
       <label for="encUsername">Fan username</label>
       <input type="text" id="encUsername" placeholder="e.g. superfan_99" maxlength="57" />
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+        <input type="checkbox" id="visibleToggle" checked
+               style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
+        <label for="visibleToggle" style="margin:0;font-size:13px;color:var(--muted);cursor:pointer;">
+          Include visible hex overlay
+        </label>
+      </div>
 
       <button class="btn-primary" id="encBtn" disabled>Embed Watermark</button>
 

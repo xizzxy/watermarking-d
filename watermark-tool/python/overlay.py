@@ -40,6 +40,10 @@ def _ffmpeg_exe() -> str:
     return "ffmpeg"
 
 
+# stdin=DEVNULL + CREATE_NO_WINDOW prevents [Errno 22] when spawned by Electron
+_SP = {"stdin": subprocess.DEVNULL, "creationflags": subprocess.CREATE_NO_WINDOW}
+
+
 # ── dynamic watermark image ───────────────────────────────────────────────────
 
 def generate_dynamic_watermark(username: str) -> str:
@@ -147,12 +151,7 @@ def add_visible_watermark(
 
         print(f"DIAGNOSTIC FFMPEG CMD: {' '.join(cmd)}", flush=True)
 
-        # stdin=DEVNULL + CREATE_NO_WINDOW: prevents Errno 22 when spawned by a
-        # GUI host (Electron) that passes a null/closed stdin handle to the process.
-        # Without this, Windows CreateProcess receives an invalid hStdInput and
-        # returns ERROR_INVALID_PARAMETER (errno 22).
-        _flags = {"stdin": subprocess.DEVNULL, "creationflags": subprocess.CREATE_NO_WINDOW}
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **_flags)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **_SP)
 
         # Always write a log to the user's Desktop so failures are never silently
         # swallowed inside the packaged .exe.
@@ -187,16 +186,18 @@ def full_watermark(
     input_path: str,
     username: str,
     output_path: str,
+    add_visible: bool = True,
 ) -> dict:
-    """Steganographic encode then add a dynamic visible watermark in one call.
+    """Steganographic encode then optionally add a dynamic visible watermark.
 
-    Pipeline:
+    Pipeline (add_visible=True):
         input → [_encode_to_mjpg] → stego.avi
-              → [generate_dynamic_watermark] → ditzy_id_<uuid>.png
-              → [add_visible_watermark(stego.avi, dynamic_png, center)] → output
+              → [generate_dynamic_watermark] → <uuid>.png
+              → [add_visible_watermark(stego.avi, png, center)] → output
 
-    The dynamic PNG shows "DITZY-ID:{hex_username}" centered on every frame.
-    Both temp files (stego.avi and the PNG) are removed in the finally block.
+    Pipeline (add_visible=False):
+        input → [_encode_to_mjpg] → stego.avi
+              → FFmpeg passthrough (libx264 crf-18, no overlay) → output
     """
     tmp_dir     = None
     dynamic_png = None
@@ -217,22 +218,41 @@ def full_watermark(
                 "error": f"Stego encode failed: {enc_result['error']}",
             }
 
-        # Step 2: generate the per-username visible watermark PNG.
-        # mkstemp-based; we own the temp file and remove it in finally.
-        dynamic_png = generate_dynamic_watermark(username)
-        print(f"DIAGNOSTIC: PNG generated at {dynamic_png}", flush=True)
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
-        # Step 3: burn overlay → final H.264 output (single FFmpeg pass), centred
-        t1 = time.time()
-        ov_result = add_visible_watermark(stego_tmp, output_path, dynamic_png,
-                                          position="center")
-        print(f"DIAGNOSTIC: FFmpeg overlay took {time.time() - t1:.1f}s", flush=True)
-        if not ov_result["success"]:
-            return {
-                "success": False,
-                "output_path": output_path,
-                "error": f"Overlay failed: {ov_result['error']}",
-            }
+        if add_visible:
+            # Step 2: generate per-username visible watermark PNG
+            dynamic_png = generate_dynamic_watermark(username)
+            print(f"DIAGNOSTIC: PNG generated at {dynamic_png}", flush=True)
+
+            # Step 3: burn overlay → final H.264 output (single FFmpeg pass)
+            t1 = time.time()
+            ov_result = add_visible_watermark(stego_tmp, output_path, dynamic_png,
+                                              position="center")
+            print(f"DIAGNOSTIC: FFmpeg overlay took {time.time() - t1:.1f}s", flush=True)
+            if not ov_result["success"]:
+                return {
+                    "success": False,
+                    "output_path": output_path,
+                    "error": f"Overlay failed: {ov_result['error']}",
+                }
+        else:
+            # No visible overlay — simple H.264 re-encode of the stego AVI
+            t1 = time.time()
+            cmd = [
+                _ffmpeg_exe(), "-y", "-i", stego_tmp,
+                "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-map", "0:a?", "-c:a", "copy",
+                output_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **_SP)
+            print(f"DIAGNOSTIC: FFmpeg passthrough took {time.time() - t1:.1f}s", flush=True)
+            if result.returncode != 0:
+                return {
+                    "success": False,
+                    "output_path": output_path,
+                    "error": f"FFmpeg failed (rc={result.returncode}): {result.stderr[-800:]}",
+                }
 
         return {
             "success": True,

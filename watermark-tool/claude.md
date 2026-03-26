@@ -192,9 +192,35 @@ in a filter string.  `ffmpeg_safe_path` logic deleted entirely.
 **Rule:** Never embed Windows paths inside `filter_complex` strings. Pass files as `-i`
 arguments and reference them by stream index (`[1:v]` etc.).
 
+## Feature: Visible Watermark Toggle + Batch Processing
+
+### Visible toggle
+- `full_watermark()` now accepts `add_visible: bool = True` (4th arg).
+  - `True`: generates dynamic PNG + FFmpeg overlay pass (existing behaviour).
+  - `False`: skips PNG entirely; runs a plain `libx264 crf-18` re-encode with no overlay.
+- `/encode` endpoint accepts `add_visible` as a form field (bool, default `True`).
+- `overlay.py` now defines its own `_SP` dict (mirrors encoder.py) so the passthrough
+  subprocess call also uses `stdin=DEVNULL + CREATE_NO_WINDOW`.
+
+### Batch processing
+- `encFileInput` has `multiple` attribute; drop zone accepts multiple files.
+- `setupDropZone` detects `fileInput.multiple` and passes an array to `onFile` when true.
+- Encode tab stores `selectedFiles[]`; label shows "N files selected".
+- "Embed Watermark" loops `for...of selectedFiles` with `await` — fully sequential.
+- Progress label updates per-file: "Processing 2 of 5: filename.mp4…".
+- After all files: green success card "Successfully processed N files!" or error summary
+  listing saved paths and failed filenames.
+
+### Watermark aesthetics (current state)
+- Font: 28 pt Arial, white, no outline.
+- Padding: 8 px around text.
+- Filter: `[1:v]format=rgba,colorchannelmixer=aa=0.35[wm_trans];[0:v][wm_trans]overlay=...`
+  (no scale2ref — PNG overlays at native pixel size).
+- Label: raw hex only (no "DITZY-ID:" prefix).
+
 ## Final summary — all prompts + features complete
 
-All 7 prompts + Dynamic Visible Hex IDs + Windows path fix delivered. Full test suite: **17/17 pass** (overlay + server). QA suite: **17/17 pass**.
+All 7 prompts + Dynamic Visible Hex IDs + Windows fixes + Toggle + Batch delivered.
 
 | Metric | Target | Actual |
 |---|---|---|
@@ -205,3 +231,5 @@ All 7 prompts + Dynamic Visible Hex IDs + Windows path fix delivered. Full test 
 | Special username round-trip | Correct | ✅ |
 | Windows NSIS installer | Built | ~154 MB ✅ |
 | PyInstaller self-contained binary | Built | ~77 MB ✅ |
+| Visible overlay toggle | ✅ | ✅ |
+| Batch multi-file processing | ✅ | ✅ |
