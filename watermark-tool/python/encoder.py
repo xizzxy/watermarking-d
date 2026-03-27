@@ -160,12 +160,14 @@ def _write_mjpg(
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    # Cap at 5 watermarked frames: the decoder reads only frame 0, so 5 frames
-    # gives redundancy without the per-frame blind_watermark cost for long/large videos.
-    wm_frame_count = min(max(1, int(total_frames * 0.05)), 5)
 
     wm_bits = _text_to_bits(f"DITZY:{_encode_username(username)}")
+
+    # Embed the payload periodically so it survives temporal cropping.
+    # Every WM_INTERVAL frames gets a watermark stamp; capped at WM_MAX_STAMPS
+    # to keep encode time reasonable on very long videos.
+    WM_INTERVAL  = 30   # ~1 s at 30 fps
+    WM_MAX_STAMPS = 300
 
     # ── set up MJPG writer ───────────────────────────────────────────────────
     fourcc = cv2.VideoWriter_fourcc(*"MJPG")
@@ -190,9 +192,9 @@ def _write_mjpg(
         if not ret:
             break
 
-        if frame_idx < wm_frame_count:
-            fin  = os.path.join(tmp_dir, f"fin_{frame_idx}.png")
-            fout = os.path.join(tmp_dir, f"fout_{frame_idx}.png")
+        if frame_idx % WM_INTERVAL == 0 and frames_processed < WM_MAX_STAMPS:
+            fin  = os.path.join(tmp_dir, "fin.png")
+            fout = os.path.join(tmp_dir, "fout.png")
             cv2.imwrite(fin, frame)
 
             bwm = WaterMark(password_img=password, password_wm=password)

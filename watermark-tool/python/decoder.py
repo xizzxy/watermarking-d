@@ -40,47 +40,71 @@ def decode_video(video_path: str, password: int = 42) -> dict:
                 "error": "Cannot open video",
             }
 
-        # Read the first (watermarked) frame
-        ret, frame = cap.read()
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+
+        # Sample at the same interval used by the encoder so every watermarked
+        # frame is a candidate.  Try up to WM_SCAN_MAX positions before giving up.
+        WM_INTERVAL  = 30
+        WM_SCAN_MAX  = 20
+
+        wm_shape  = MAX_PAYLOAD_LEN * 8  # bits
+        frame_png = os.path.join(tmp_dir, "frame.png")
+
+        last_payload = None
+        found = False
+
+        for attempt in range(WM_SCAN_MAX):
+            seek_frame = attempt * WM_INTERVAL
+            if seek_frame >= total_frames:
+                break
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, seek_frame)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            cv2.imwrite(frame_png, frame)
+
+            bwm = WaterMark(password_img=password, password_wm=password)
+            # Match the increased d1/d2 set in encoder._write_mjpg
+            bwm.bwm_core.d1 = 70
+            bwm.bwm_core.d2 = 45
+
+            # mode='bit' returns a boolean numpy array — avoids the leading-zero
+            # truncation bug in blind_watermark's own str mode.
+            bits = bwm.extract(frame_png, wm_shape=wm_shape, mode="bit")
+            payload = _bits_to_text(bits)
+            last_payload = payload
+
+            if payload.startswith("DITZY:"):
+                found = True
+                break
+
         cap.release()
 
-        if not ret:
-            return {
-                "success": False,
-                "username": None,
-                "raw_payload": None,
-                "error": "Cannot read frame from video",
-            }
-
-        frame_png = os.path.join(tmp_dir, "frame.png")
-        cv2.imwrite(frame_png, frame)
-
-        bwm = WaterMark(password_img=password, password_wm=password)
-        # Match the increased d1/d2 set in encoder._write_mjpg
-        bwm.bwm_core.d1 = 70
-        bwm.bwm_core.d2 = 45
-        wm_shape = MAX_PAYLOAD_LEN * 8  # bits
-
-        # mode='bit' returns a boolean numpy array — avoids the leading-zero
-        # truncation bug in blind_watermark's own str mode.
-        bits = bwm.extract(frame_png, wm_shape=wm_shape, mode="bit")
-        payload = _bits_to_text(bits)
-
-        if payload.startswith("DITZY:"):
-            encoded = payload[len("DITZY:"):].rstrip()
+        if found:
+            encoded = last_payload[len("DITZY:"):].rstrip()
             username = _decode_username(encoded)
             return {
                 "success": True,
                 "username": username,
-                "raw_payload": payload,
+                "raw_payload": last_payload,
+                "error": None,
+            }
+
+        if last_payload is not None:
+            return {
+                "success": True,
+                "username": None,
+                "raw_payload": last_payload,
                 "error": None,
             }
 
         return {
-            "success": True,
+            "success": False,
             "username": None,
-            "raw_payload": payload,
-            "error": None,
+            "raw_payload": None,
+            "error": "Cannot read any frame from video",
         }
 
     except Exception as exc:
