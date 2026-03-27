@@ -20,6 +20,7 @@ Design notes:
 
 import base64
 import cv2
+import imageio_ffmpeg
 import numpy as np
 import os
 import sys
@@ -261,23 +262,9 @@ def _text_to_bits(text: str) -> np.ndarray:
 
 # ── FFmpeg location ───────────────────────────────────────────────────────────
 
-# Common Windows install locations tried in order when "ffmpeg" is not on PATH.
-_FFMPEG_FALLBACKS = [
-    r"C:\Users\xizzy\AppData\Local\Microsoft\WinGet\Links\ffmpeg.exe",
-    r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-    r"C:\ffmpeg\bin\ffmpeg.exe",
-]
-
 def _ffmpeg_exe() -> str:
-    """Return the ffmpeg executable path, searching fallback locations."""
-    import shutil
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    for path in _FFMPEG_FALLBACKS:
-        if os.path.isfile(path):
-            return path
-    return "ffmpeg"  # let it fail with a clear error if truly missing
+    """Return the ffmpeg executable path (bundled via imageio-ffmpeg)."""
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 def _ffmpeg_available() -> bool:

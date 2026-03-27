@@ -21,9 +21,6 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r watermark-tool/python/requirements.txt
 
-      - name: Install FFmpeg
-        run: brew install ffmpeg
-
       - name: Build Python backend (PyInstaller)
         working-directory: watermark-tool/python
         run: pyinstaller --clean server.spec

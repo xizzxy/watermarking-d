@@ -10,13 +10,15 @@ Hidden imports cover dynamic-import patterns used by:
   - fastapi / starlette (middleware, routing)
 """
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
 
 a = Analysis(
     ['server.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=collect_data_files('imageio_ffmpeg'),
     hiddenimports=[
         # blind_watermark
         'blind_watermark',

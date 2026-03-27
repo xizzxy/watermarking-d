@@ -20,25 +20,12 @@ import sys
 import tempfile
 import time
 
+import imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
-
-# ── FFmpeg location (mirrors encoder.py) ─────────────────────────────────────
-
-_FFMPEG_FALLBACKS = [
-    r"C:\Users\xizzy\AppData\Local\Microsoft\WinGet\Links\ffmpeg.exe",
-    r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-    r"C:\ffmpeg\bin\ffmpeg.exe",
-]
 
 
 def _ffmpeg_exe() -> str:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    for path in _FFMPEG_FALLBACKS:
-        if os.path.isfile(path):
-            return path
-    return "ffmpeg"
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 # stdin=DEVNULL prevents [Errno 22] when spawned by Electron (null stdin handle).
