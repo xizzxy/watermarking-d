@@ -22,13 +22,16 @@ import base64
 import cv2
 import numpy as np
 import os
+import sys
 import shutil
 import subprocess
 import tempfile
 
-# stdin=DEVNULL + CREATE_NO_WINDOW prevents [Errno 22] when this process is
-# spawned by a GUI host (Electron) whose stdin handle is null/closed.
-_SP = {"stdin": subprocess.DEVNULL, "creationflags": subprocess.CREATE_NO_WINDOW}
+# stdin=DEVNULL prevents [Errno 22] when spawned by a GUI host (Electron)
+# whose stdin handle is null/closed.  CREATE_NO_WINDOW is Windows-only.
+_SP: dict = {"stdin": subprocess.DEVNULL}
+if sys.platform == "win32":
+    _SP["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 from blind_watermark import WaterMark
 

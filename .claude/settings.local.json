@@ -27,7 +27,9 @@
       "Bash(venv/Scripts/python.exe -m pytest tests/test_stego.py tests/test_overlay.py tests/test_server.py -v --tb=short)",
       "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/test_qa.py -v --tb=short \\\\\n  -k \"not performance\" 2>&1)",
       "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/test_qa.py::test_survival_rate -v --tb=short 2>&1)",
-      "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/ -v --tb=short 2>&1)"
+      "Bash(\\\\\nvenv/Scripts/python.exe -m pytest tests/ -v --tb=short 2>&1)",
+      "Bash(cd:*)",
+      "Bash(venv/Scripts/python -m PyInstaller --clean server.spec)"
     ]
   }
 }

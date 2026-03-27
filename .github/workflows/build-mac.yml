@@ -1,0 +1,52 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-14   # Apple Silicon (arm64) — fastest free tier Mac runner
+
+    steps:
+      # ── 1. Source ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python backend ────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r watermark-tool/python/requirements.txt
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      - name: Build Python backend (PyInstaller)
+        working-directory: watermark-tool/python
+        run: pyinstaller --clean server.spec
+
+      # ── 3. Electron frontend ─────────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Node dependencies
+        working-directory: watermark-tool/electron
+        run: npm install
+
+      - name: Build macOS app (DMG)
+        working-directory: watermark-tool/electron
+        run: npm run dist -- --mac --arm64
+
+      # ── 4. Upload artifact ───────────────────────────────────────────────────
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: watermark-tool-mac-arm64
+          path: watermark-tool/electron/dist-electron/*.dmg
+          if-no-files-found: error
+          retention-days: 30

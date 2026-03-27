@@ -185,27 +185,30 @@ ipcMain.handle("get-api-base", () => API_BASE);
  * @param {string} hexId  raw hex or "DITZY-ID:AABB..." string
  */
 ipcMain.handle("decode-hex", async (_event, hexId) => {
-  const { net } = require("electron");
+  const http = require("http");
+  const body = JSON.stringify({ hex_id: hexId });
   return new Promise((resolve) => {
-    const body = JSON.stringify({ hex_id: hexId });
-    const req  = net.request({
-      method: "POST",
-      url:    `${API_BASE}/decode-hex`,
-    });
-    req.setHeader("Content-Type",   "application/json");
-    req.setHeader("Content-Length", Buffer.byteLength(body).toString());
-
-    let data = "";
-    req.on("response", (res) => {
-      res.on("data",  (chunk) => { data += chunk; });
-      res.on("end",   ()      => {
-        try   { resolve(JSON.parse(data)); }
-        catch  { resolve({ success: false, username: null, error: "Invalid JSON from server" }); }
-      });
-    });
-    req.on("error", (err) => {
-      resolve({ success: false, username: null, error: err.message });
-    });
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port:     8765,
+        path:     "/decode-hex",
+        method:   "POST",
+        headers:  {
+          "Content-Type":   "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end",  () => {
+          try   { resolve(JSON.parse(data)); }
+          catch { resolve({ success: false, username: null, error: "Invalid JSON from server" }); }
+        });
+      }
+    );
+    req.on("error", (err) => resolve({ success: false, username: null, error: err.message }));
     req.write(body);
     req.end();
   });

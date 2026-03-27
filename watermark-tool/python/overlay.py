@@ -16,6 +16,7 @@ Interface:
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -40,8 +41,11 @@ def _ffmpeg_exe() -> str:
     return "ffmpeg"
 
 
-# stdin=DEVNULL + CREATE_NO_WINDOW prevents [Errno 22] when spawned by Electron
-_SP = {"stdin": subprocess.DEVNULL, "creationflags": subprocess.CREATE_NO_WINDOW}
+# stdin=DEVNULL prevents [Errno 22] when spawned by Electron (null stdin handle).
+# CREATE_NO_WINDOW is Windows-only — guard with platform check.
+_SP: dict = {"stdin": subprocess.DEVNULL}
+if sys.platform == "win32":
+    _SP["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 
 # ── dynamic watermark image ───────────────────────────────────────────────────
