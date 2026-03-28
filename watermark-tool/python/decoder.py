@@ -121,18 +121,23 @@ def decode_video(video_path: str, password: int = 42) -> dict:
 
 # ── username helpers ──────────────────────────────────────────────────────────
 
+_B64URL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+
+
 def _decode_username(encoded: str) -> str:
     """Decode a URL-safe base64-encoded username produced by encoder._encode_username.
 
-    Tolerates missing base64 padding (the encoder strips '=' characters to keep
-    the payload short).
+    Tolerates missing base64 padding and strips any non-base64 characters
+    (null bytes, Unicode replacement chars) that DCT extraction noise may have
+    appended to the payload after the valid base64 content.
     """
-    padding = (4 - len(encoded) % 4) % 4
+    clean = "".join(c for c in encoded if c in _B64URL_CHARS)
+    if not clean:
+        return encoded
+    padding = (4 - len(clean) % 4) % 4
     try:
-        return base64.urlsafe_b64decode(encoded + "=" * padding).decode("utf-8", errors="replace")
+        return base64.urlsafe_b64decode(clean + "=" * padding).decode("utf-8", errors="replace")
     except Exception:
-        # Fallback: return the raw encoded string if decoding fails (e.g. legacy
-        # video encoded before base64 support was added)
         return encoded
 
 
