@@ -42,10 +42,9 @@ def decode_video(video_path: str, password: int = 42) -> dict:
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
 
-        # Sample at the same interval used by the encoder so every watermarked
-        # frame is a candidate.  Try up to WM_SCAN_MAX positions before giving up.
-        WM_INTERVAL  = 30
-        WM_SCAN_MAX  = 20
+        # Spread samples evenly across the actual duration so that any trimmed
+        # sub-clip is scanned proportionally rather than at fixed offsets.
+        WM_SCAN_MAX = 20
 
         wm_shape  = MAX_PAYLOAD_LEN * 8  # bits
         frame_png = os.path.join(tmp_dir, "frame.png")
@@ -54,7 +53,7 @@ def decode_video(video_path: str, password: int = 42) -> dict:
         found = False
 
         for attempt in range(WM_SCAN_MAX):
-            seek_frame = attempt * WM_INTERVAL
+            seek_frame = int(attempt * total_frames / WM_SCAN_MAX)
             if seek_frame >= total_frames:
                 break
 
@@ -67,8 +66,8 @@ def decode_video(video_path: str, password: int = 42) -> dict:
 
             bwm = WaterMark(password_img=password, password_wm=password)
             # Match the increased d1/d2 set in encoder._write_mjpg
-            bwm.bwm_core.d1 = 70
-            bwm.bwm_core.d2 = 45
+            bwm.bwm_core.d1 = 36
+            bwm.bwm_core.d2 = 20
 
             # mode='bit' returns a boolean numpy array — avoids the leading-zero
             # truncation bug in blind_watermark's own str mode.

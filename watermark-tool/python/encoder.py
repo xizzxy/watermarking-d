@@ -200,8 +200,8 @@ def _write_mjpg(
             bwm = WaterMark(password_img=password, password_wm=password)
             # Increase robustness (d1/d2) so the stego signal survives the
             # subsequent H.264 encode in overlay.add_visible_watermark.
-            bwm.bwm_core.d1 = 70
-            bwm.bwm_core.d2 = 45
+            bwm.bwm_core.d1 = 36
+            bwm.bwm_core.d2 = 20
             bwm.read_img(fin)
             bwm.read_wm(wm_bits, mode="bit")
             bwm.embed(fout)
